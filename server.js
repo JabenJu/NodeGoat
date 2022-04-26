@@ -26,6 +26,18 @@ const httpsOptions = {
     cert: fs.readFileSync(path.resolve(__dirname, "./artifacts/cert/server.crt"))
 };
 */
+const fs = require("fs");
+const https = require("https");
+const path = require("path");
+const httpsOptions = {
+    key: fs.readFileSync(path.resolve(__dirname, "./artifacts/cert/server.key")),
+    cert: fs.readFileSync(path.resolve(__dirname, "./artifacts/cert/server.crt"))
+};
+
+swig.init({
+    root: __dirname + "/app/views",
+    autoescape: true //default value
+});
 
 MongoClient.connect(db, (err, db) => {
     if (err) {
@@ -75,20 +87,23 @@ MongoClient.connect(db, (err, db) => {
     }));
 
     // Enable session management using express middleware
-    app.use(session({
-        // genid: (req) => {
-        //    return genuuid() // use UUIDs for session IDs
-        //},
+    app.use(express.session({
+        genid: (req) => {
+           return genuuid() // use UUIDs for session IDs
+        },
         secret: cookieSecret,
         // Both mandatory in Express v4
         saveUninitialized: true,
-        resave: true
+        resave: true,
         /*
         // Fix for A5 - Security MisConfig
         // Use generic cookie name
         key: "sessionId",
         */
-
+        key: "sessionId",
+        httpOnly: true,
+        // Remember to start an HTTPS server to get this working
+        secure: true
         /*
         // Fix for A3 - XSS
         // TODO: Add "maxAge"
@@ -98,8 +113,8 @@ MongoClient.connect(db, (err, db) => {
             // secure: true
         }
         */
-
     }));
+    
 
     /*
     // Fix for A8 - CSRF
@@ -132,7 +147,7 @@ MongoClient.connect(db, (err, db) => {
     // Template system setup
     swig.setDefaults({
         // Autoescape disabled
-        autoescape: false
+        autoescape: true // default value
         /*
         // Fix for A3 - XSS, enable auto escaping
         autoescape: true // default value
