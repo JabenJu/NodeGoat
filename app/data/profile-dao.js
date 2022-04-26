@@ -12,6 +12,23 @@ function ProfileDAO(db) {
 
     const users = db.collection("users");
 
+    const crypto = require("crypto");
+    const config = require("../../config/config");
+    const createIV = () => {
+        // create a random salt for the PBKDF2 function - 16 bytes is the minimum length according to NIST
+        const salt = crypto.randomBytes(16);
+        return crypto.pbkdf2Sync(config.cryptoKey, salt, 100000, 512, "sha512");
+    };
+    const encrypt = (toEncrypt) => {
+        config.iv = createIV();
+        const cipher = crypto.createCipheriv(config.cryptoAlgo, config.cryptoKey, config.iv);
+        return `${cipher.update(toEncrypt, "utf8", "hex")} ${cipher.final("hex")}`;
+    };
+
+    const decrypt = (toDecrypt) => {
+        const decipher = crypto.createDecipheriv(config.cryptoAlgo, config.cryptoKey, config.iv);
+        return `${decipher.update(toDecrypt, "hex", "utf8")} ${decipher.final("utf8")}`;
+    };
     /* Fix for A6 - Sensitive Data Exposure
 
     // Use crypto module to save sensitive data such as ssn, dob in encrypted format
@@ -64,6 +81,12 @@ function ProfileDAO(db) {
         if (dob) {
             user.dob = dob;
         }
+        if(ssn) {
+            user.ssn = encrypt(ssn);
+        }
+        if(dob) {
+            user.dob = encrypt(dob);
+        }
         /*
         // Fix for A7 - Sensitive Data Exposure
         // Store encrypted ssn and DOB
@@ -97,6 +120,8 @@ function ProfileDAO(db) {
             },
             (err, user) => {
                 if (err) return callback(err, null);
+                user.ssn = user.ssn ? decrypt(user.ssn) : "";
+                user.dob = user.dob ? decrypt(user.dob) : "";
                 /*
                 // Fix for A6 - Sensitive Data Exposure
                 // Decrypt ssn and DOB values to display to user

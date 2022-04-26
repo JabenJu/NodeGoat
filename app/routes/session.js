@@ -22,13 +22,19 @@ function SessionHandler(db) {
         });
     };
 
-    this.isAdminUserMiddleware = (req, res, next) => {
+    this.isAdminUserMiddleware = function(req, res, next) {
         if (req.session.userId) {
-            return userDAO.getUserById(req.session.userId, (err, user) => user && user.isAdmin ? next() : res.redirect("/login"));
+            userDAO.getUserById(req.session.userId, function(err, user) {
+                 if(user && user.isAdmin) {
+                     next();
+                 } else {
+                     return res.redirect("/login");
+                 }
+            });
+        } else {
+            console.log("redirecting to login");
+            return res.redirect("/login");
         }
-        console.log("redirecting to login");
-        return res.redirect("/login");
-
     };
 
     this.isLoggedInMiddleware = (req, res, next) => {

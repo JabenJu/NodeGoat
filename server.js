@@ -4,14 +4,14 @@ const express = require("express");
 const favicon = require("serve-favicon");
 const bodyParser = require("body-parser");
 const session = require("express-session");
-// const csrf = require('csurf');
+const csrf = require('csurf');
 const consolidate = require("consolidate"); // Templating library adapter for Express
 const swig = require("swig");
-// const helmet = require("helmet");
+const helmet = require("helmet");
 const MongoClient = require("mongodb").MongoClient; // Driver for connecting to MongoDB
 const http = require("http");
 const marked = require("marked");
-//const nosniff = require('dont-sniff-mimetype');
+const nosniff = require('dont-sniff-mimetype');
 const app = express(); // Web framework to handle routing requests
 const routes = require("./app/routes");
 const { port, db, cookieSecret } = require("./config/config"); // Application config properties
@@ -46,7 +46,14 @@ MongoClient.connect(db, (err, db) => {
         process.exit(1);
     }
     console.log(`Connected to the database`);
-
+    app.disable("x-powered-by");
+    app.use(helmet.frameguard()); //xframe deprecated
+    app.use(helmet.noCache());
+    app.use(helmet.contentSecurityPolicy()); //csp deprecated
+    app.use(helmet.hsts());
+    app.use(helmet.iexss());
+    app.use(helmet.xssFilter({ setOnOldIE: true }));
+    app.use(nosniff());
     /*
     // Fix for A5 - Security MisConfig
     // TODO: Review the rest of helmet options, like "xssFilter"
@@ -91,7 +98,6 @@ MongoClient.connect(db, (err, db) => {
         genid: (req) => {
            return genuuid() // use UUIDs for session IDs
         },
-        secret: cookieSecret,
         // Both mandatory in Express v4
         saveUninitialized: true,
         resave: true,
@@ -100,10 +106,13 @@ MongoClient.connect(db, (err, db) => {
         // Use generic cookie name
         key: "sessionId",
         */
+        secret: config.cookieSecret,
         key: "sessionId",
-        httpOnly: true,
-        // Remember to start an HTTPS server to get this working
-        secure: true
+        cookie: {
+            httpOnly: true,
+            secure: true
+            // Remember to start an HTTPS server to get this working
+        }
         /*
         // Fix for A3 - XSS
         // TODO: Add "maxAge"
@@ -126,6 +135,12 @@ MongoClient.connect(db, (err, db) => {
         next();
     });
     */
+    
+    app.use(csrf());
+    app.use((req, res, next) => {
+        res.locals.csrftoken = req.csrfToken();
+        next();
+    });
 
     // Register templating engine
     app.engine(".html", consolidate.swig);
@@ -155,10 +170,10 @@ MongoClient.connect(db, (err, db) => {
     });
 
     // Insecure HTTP connection
-    http.createServer(app).listen(port, () => {
+
+    https.createServer(httpsOptions, app).listen(port, () => {
         console.log(`Express http server listening on port ${port}`);
     });
-
     /*
     // Fix for A6-Sensitive Data Exposure
     // Use secure HTTPS protocol
